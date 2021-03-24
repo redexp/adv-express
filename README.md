@@ -61,7 +61,7 @@ const define = code => createModel(code, {schemas});
 const app = require('adv-express')({schemas});
 
 const User = define(`User = {
-    id: number, 
+    id: id.primaryKey(), 
     name: string.minLength(3).maxLength(20),
 }`);
 
