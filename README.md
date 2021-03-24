@@ -13,8 +13,8 @@ const users = express.Router({mergeParams: true});
 app.use('/users', users);
 
 app
-	.schema(`Success = {success: true}`)
-	.schema(`Error = {success: false, message: string}`)
+    .schema(`Success = {success: true}`)
+    .schema(`Error = {success: false, message: string}`)
 
 users
     .schema(`User = {
@@ -31,21 +31,21 @@ users
 users
     .url('/:id')
     .params(`User.props('id')`)
-	.then(req => Users.findById(req.params.id))
-	.response(`User`);
+    .then(req => Users.findById(req.params.id))
+    .response(`User`);
 
 users
-	.url('POST /:id')
-	.params(`User.props('id')`)
+    .url('POST /:id')
+    .params(`User.props('id')`)
     .body(`User`)
-	.callback(function (req, res) {
-		Users
+    .callback(function (req, res) {
+        Users
             .findById(req.params.id)
             .update(req.body)
             .then(() => res.json({success: true}))
             .catch(err => res.status(500).json({success: false, message: err.message}));
     })
-	.response(`Success`)
+    .response(`Success`)
     .response(`5xx Error`);
 ```
 
@@ -66,8 +66,8 @@ const User = define(`User = {
 }`);
 
 app
-	.url('/users/:id')
-	.params(`User.props('id')`)
-	.then(req => User.findByPk(req.params.id))
-	.response(`User`);
+    .url('/users/:id')
+    .params(`User.props('id')`)
+    .then(req => User.findByPk(req.params.id))
+    .response(`User`);
 ```
