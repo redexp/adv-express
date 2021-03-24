@@ -1,0 +1,29 @@
+{
+  "name": "adv-express",
+  "version": "1.0.0",
+  "description": "ADV integration with Express",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --ui bdd ./tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/redexp/adv-express.git"
+  },
+  "keywords": [
+    "adv",
+    "ajv",
+    "express",
+    "validator",
+    "router"
+  ],
+  "author": "Sergii Kliuchnyk <sergiikliuchnyk@gmail.com> (https://github.com/redexp)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/redexp/adv-express/issues"
+  },
+  "homepage": "https://github.com/redexp/adv-express#readme",
+  "devDependencies": {
+    "express": "^4.17.1"
+  }
+}
