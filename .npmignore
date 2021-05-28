@@ -1,3 +1,4 @@
 tests
 .nvmrc
 .travis.yml
+.idea
