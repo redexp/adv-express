@@ -1,4 +1,7 @@
-# adv-express
+adv-express
+-----------
+
+[![Build Status](https://travis-ci.com/redexp/adv-express.svg?branch=master)](https://travis-ci.com/redexp/adv-express)
 
 ADV integration with Express
 
