@@ -57,7 +57,19 @@ describe('express', function () {
 			}
 		});
 
-		router.baseUrl('/test');
+		var count = 0;
+
+		router
+			.baseUrl('/test')
+			.callback(function (req, res, next) {
+				count++;
+				next();
+			})
+			.url('/baseUrl/test')
+			.body(`{test: boolean}`)
+			.then((req) => ({result: req.body.test}))
+			.response(`{result: true}`)
+		;
 
 		router.schema(`Test = {id: id, name: string, age: number}`);
 
@@ -242,6 +254,26 @@ describe('express', function () {
 			.expect(function (res) {
 				expect(res.statusCode).to.eql(200);
 				expect(res.body).to.eql({name: 'Test'});
+			});
+
+		expect(count).to.eql(11);
+
+		await request(app)
+			.post('/test/baseUrl/test')
+			.send({test: true})
+			.expect(function (res) {
+				expect(res.statusCode).to.eql(200);
+				expect(res.body).to.eql({result: true});
+			});
+
+		await request(app)
+			.post('/test/baseUrl/test')
+			.send({test: false})
+			.expect(function (res) {
+				expect(res.statusCode).to.eql(500);
+				expect(res.body).include({
+					'name': 'ResponseValidationError',
+				});
 			});
 	});
 

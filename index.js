@@ -44,17 +44,29 @@ function extendRouter(
 
 		this._baseUrl = baseUrl;
 
-		routes.push({endpoint: {baseUrl}});
-
-		return this;
-	};
-
-	Router.url = function url(path) {
-		var router = new AdvExpressRouter({router: this, ajv});
+		var router = new AdvExpressRouter({
+			Router,
+			router: this,
+			ajv,
+			defaultMethod
+		});
 
 		routes.push(router);
 
-		return router.url(path, {defaultMethod});
+		return router.baseUrl(baseUrl);
+	};
+
+	Router.url = function url(path) {
+		var router = new AdvExpressRouter({
+			Router,
+			router: this,
+			ajv,
+			defaultMethod
+		});
+
+		routes.push(router);
+
+		return router.url(path);
 	};
 
 	Router.schema = function (code) {
@@ -129,36 +141,41 @@ function extendRouter(
 }
 
 class AdvExpressRouter {
-	constructor({router, ajv}) {
+	constructor({Router, router, ajv, defaultMethod}) {
+		this.Router = Router;
 		this.router = router;
 		this.ajv = ajv;
+		this.defaultMethod = defaultMethod;
 		this.endpoint = {};
 	}
 
-	url(code, options = {}) {
+	baseUrl(path) {
+		this.endpoint.baseUrl = path;
+
+		const {Router, router} = this;
+
+		this.route = Router();
+		this.route.stack = new StackArray();
+		router.use(path, this.route);
+
+		return this;
+	}
+
+	url(code) {
 		this.endpoint.url = code;
 
 		const {router} = this;
-		const {method, path} = annotations.url(code, options);
+		const {method, path} = annotations.url(code, {defaultMethod: this.defaultMethod});
 
 		this.method = method.toLowerCase();
-
-		const route = this.route = router.route(router.baseUrl() + path);
-
-		this.stack = new StackArray();
-		this.stack.push(...route.stack);
-		route.stack = this.stack;
-
-		this.callback((req, res, next) => {
-			this.validate(req, res);
-			next();
-		});
+		this.route = router.route(router.baseUrl() + path);
+		this.route.stack = new StackArray();
 
 		return this;
 	}
 
 	callback(callback) {
-		this.route[this.method](callback);
+		this.route[this.method || 'use'](callback);
 
 		return this;
 	}
@@ -202,7 +219,7 @@ class AdvExpressRouter {
 
 		this.callback(this.resultHandler);
 
-		this.stack.lockLast();
+		this.route.stack.lockLast();
 	}
 
 	validate(req, res) {
@@ -249,6 +266,17 @@ class AdvExpressRouter {
 		}
 	}
 
+	ensureValidate() {
+		if (this.validateHandler) return;
+
+		this.validateHandler = (req, res, next) => {
+			this.validate(req, res);
+			next();
+		};
+
+		this.callback(this.validateHandler);
+	}
+
 	namespace(code) {
 		this.endpoint.namespace = code;
 
@@ -266,25 +294,36 @@ class AdvExpressRouter {
 	}
 
 	params(code) {
+		this.ensureValidate();
+
 		this.endpoint.params = code;
 
 		return this;
 	}
 
 	query(code) {
+		this.ensureValidate();
+
 		this.endpoint.query = code;
 
 		return this;
 	}
 
 	body(code) {
+		this.ensureValidate();
+
 		this.endpoint.body = code;
 
 		return this;
 	}
 
 	response(code) {
-		this.endpoint.response = this.endpoint.response || [];
+		this.ensureValidate();
+
+		if (!this.endpoint.response) {
+			this.endpoint.response = [];
+		}
+
 		this.endpoint.response.push(code);
 
 		return this;

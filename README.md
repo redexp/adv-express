@@ -17,15 +17,17 @@ const users = express.Router();
 app.use(express.json());
 app.use(users);
 
-users.baseUrl('/users');
+users
+    .baseUrl('/users')
+    .callback(require('some-middleware'));
 
 users
     .schema(`Success = {success: true}`)
-    .schema(`Error = {success: false, message: string}`)
-    .schema(`User = {
-        id: number, 
-        name: string.minLength(3).maxLength(20),
-    }`);
+    .schema(Error => ({success: false, message: string}))
+    .schema(() => User = {
+       id: number,
+       name: string.minLength(3).maxLength(20),
+    });
 
 users
     .url('/')
@@ -35,8 +37,8 @@ users
 
 users
     .url('/:id')
-    .params(`User.props('id')`)
-    .callback(require('some-express-middleware'))
+    .params(() => User.props('id'))
+    .callback(require('some-local-middleware'))
     .then(req => Users.findById(req.params.id))
     .catch((err, req, res) => {
     	res.status(500);
