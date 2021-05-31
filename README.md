@@ -46,7 +46,7 @@ users
     	return {error: true, message: err.message};
     })
     .response(`User`)
-    .response(`5xx {error: true, message: string}`);
+    .response(500, () => ({error: true, message: string}));
 
 users
     .url('POST /:id')

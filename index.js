@@ -2,13 +2,30 @@ const annotations = require('api-doc-validator/lib/annotations');
 const {getAstSchema, generateAjvSchema} = require('adv-parser');
 const defaultSchemas = require('adv-parser/schemas');
 
-module.exports = function extendExpress(express, options = {}) {
-	extendApplication(express.application);
-	extendRouter(express.Router, options);
-};
-
+module.exports = extendExpress;
 module.exports.extendApplication = extendApplication;
 module.exports.extendRouter = extendRouter;
+
+/**
+ * @typedef {{props: function (prop: string): AdvModel}} AdvModel
+ * @typedef {string|function (name?: AdvModel): (AdvModel|Array<AdvModel>)} AdvSchema
+ * @typedef {function (schema: AdvSchema): AdvRouter} AdvMethod
+ * @typedef {function(): void|function(err: Error): void} AdvNext
+ * @typedef {function(req: Request, res: Response)|function(req: Request, res: Response, next: AdvNext)|function(err: Error, req: Request, res: Response, next: AdvNext)} AdvCallback
+ * @typedef {{callback: function (cb: AdvCallback): AdvRouter, then: function (result: any): AdvRouter, catch: function (error: Error): AdvRouter, params: AdvMethod, query: AdvMethod, body: AdvMethod, response: AdvMethod|function(code: string|number, schema: AdvSchema):AdvRouter, call: AdvMethod, schema: AdvMethod}} AdvRouter
+ */
+
+/**
+ * @param express
+ * @param {{schemas?: Object, ajv?: import('ajv'), parseEndpoints?: boolean, defaultMethod?: string, defaultCode?: string|number}} options
+ * @returns {{Router: {baseUrl: function (path: string): AdvRouter, url: function (path: string): AdvRouter, schema: AdvMethod, endpoints: Array<Object>}}}
+ */
+function extendExpress(express, options = {}) {
+	extendApplication(express.application);
+	extendRouter(express.Router, options);
+
+	return express;
+}
 
 function extendApplication(app) {
 	['baseUrl', 'url', 'schema', 'endpoints'].forEach(function (method) {
@@ -26,6 +43,7 @@ function extendRouter(
 		ajv,
 		parseEndpoints = true,
 		defaultMethod = 'GET',
+		defaultCode = 200,
 	}
 ) {
 	var routes = [];
@@ -48,7 +66,8 @@ function extendRouter(
 			Router,
 			router: this,
 			ajv,
-			defaultMethod
+			defaultMethod,
+			defaultCode,
 		});
 
 		routes.push(router);
@@ -61,7 +80,8 @@ function extendRouter(
 			Router,
 			router: this,
 			ajv,
-			defaultMethod
+			defaultMethod,
+			defaultCode,
 		});
 
 		routes.push(router);
@@ -70,7 +90,17 @@ function extendRouter(
 	};
 
 	Router.schema = function (code) {
-		routes.push({endpoint: {schema: [code]}});
+		var router = new AdvExpressRouter({
+			Router,
+			router: this,
+			ajv,
+			defaultMethod,
+			defaultCode,
+		});
+
+		routes.push(router);
+
+		return router.schema(code);
 	};
 
 	Router.endpoints = function (force) {
@@ -78,54 +108,47 @@ function extendRouter(
 
 		const getAst = value => {
 			if (Array.isArray(value)) {
-				return value.forEach(getAst);
+				return value.map(getAst);
 			}
 
 			if (value.schema) {
 				value.schema = getAstSchema(value.schema, {schemas});
 			}
+
+			return value;
 		};
 
 		const generateAjv = value => {
 			if (Array.isArray(value)) {
-				return value.forEach(generateAjv);
+				return value.map(generateAjv);
 			}
 
 			if (value.schema) {
 				value.schema = generateAjvSchema(value.schema, {schemas});
 			}
+
+			return value;
 		};
 
 		routes.forEach(function (route) {
-			const {endpoint} = route;
+			const {endpoint: e} = route;
 
-			for (const prop in endpoint) {
-				var value = endpoint[prop];
-				var annotation = annotations[prop];
-
-				if (annotation.prepare) {
-					value = Array.isArray(value) ? value.map(annotation.prepare) : annotation.prepare(value);
-				}
-
-				getAst(value);
-
-				endpoint[prop] = value;
+			for (const prop in e) {
+				e[prop] = getAst(e[prop]);
 			}
 		});
 
 		var endpoints = routes.map(function (route) {
-			const {endpoint} = route;
+			const {endpoint: e} = route;
 
-			for (const prop in endpoint) {
-				var value = endpoint[prop];
-				var annotation = annotations[prop];
-
-				generateAjv(value);
-
-				endpoint[prop] = annotation(value, {defaultMethod});
+			for (const prop in e) {
+				e[prop] = annotations[prop](
+					generateAjv(e[prop]),
+					{defaultMethod}
+				);
 			}
 
-			return endpoint;
+			return e;
 		});
 
 		ready = true;
@@ -141,12 +164,13 @@ function extendRouter(
 }
 
 class AdvExpressRouter {
-	constructor({Router, router, ajv, defaultMethod}) {
+	constructor({Router, router, ajv, defaultMethod, defaultCode}) {
 		this.Router = Router;
 		this.router = router;
 		this.ajv = ajv;
-		this.defaultMethod = defaultMethod;
 		this.endpoint = {};
+		this.defaultMethod = defaultMethod;
+		this.defaultCode = defaultCode;
 	}
 
 	baseUrl(path) {
@@ -296,7 +320,7 @@ class AdvExpressRouter {
 	params(code) {
 		this.ensureValidate();
 
-		this.endpoint.params = code;
+		this.endpoint.params = annotations.params.prepare(code);
 
 		return this;
 	}
@@ -304,7 +328,7 @@ class AdvExpressRouter {
 	query(code) {
 		this.ensureValidate();
 
-		this.endpoint.query = code;
+		this.endpoint.query = annotations.query.prepare(code);
 
 		return this;
 	}
@@ -312,26 +336,37 @@ class AdvExpressRouter {
 	body(code) {
 		this.ensureValidate();
 
-		this.endpoint.body = code;
+		this.endpoint.body = annotations.body.prepare(code);
 
 		return this;
 	}
 
-	response(code) {
+	response(code, schema) {
+		if (arguments.length === 1) {
+			schema = code;
+			code = '';
+		}
+
 		this.ensureValidate();
 
 		if (!this.endpoint.response) {
 			this.endpoint.response = [];
 		}
 
-		this.endpoint.response.push(code);
+		this.endpoint.response.push(
+			annotations.response.prepare(schema, {
+				defaultCode: code || this.defaultCode
+			})
+		);
 
 		return this;
 	}
 
 	schema(code) {
 		this.endpoint.schema = this.endpoint.schema || [];
-		this.endpoint.schema.push(code);
+		this.endpoint.schema.push(
+			annotations.schema.prepare(code)
+		);
 
 		return this;
 	}

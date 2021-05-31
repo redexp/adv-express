@@ -4,13 +4,13 @@ const request = require('supertest');
 const extendExpress = require('../index');
 
 describe('express', function () {
-	const {Router} = express;
+	let Router;
 
 	beforeEach(function () {
-		extendExpress(express, {
+		Router = extendExpress(express, {
 			parseEndpoints: false,
 			defaultMethod: 'POST',
-		});
+		}).Router;
 	});
 
 	it('app', async function () {
@@ -135,8 +135,9 @@ describe('express', function () {
 			})
 			.response(`{name: string}`)
 			.response(`300 - 400 {success: false}`)
-			.response(`500 {message: string}`)
-			.response(`50X {test: boolean}`)
+			.response(500, () => ({message: string}))
+			.response('50X', `{test: boolean}`)
+			.call(() => test.post())
 		;
 
 		var endpoints = Router.endpoints(true);
