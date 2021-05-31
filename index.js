@@ -18,7 +18,7 @@ module.exports.extendRouter = extendRouter;
 /**
  * @param express
  * @param {{schemas?: Object, ajv?: import('ajv'), parseEndpoints?: boolean, defaultMethod?: string, defaultCode?: string|number}} options
- * @returns {{Router: {baseUrl: function (path: string): AdvRouter, url: function (path: string): AdvRouter, schema: AdvMethod, endpoints: Array<Object>}}}
+ * @returns {{Router: function(options?: import('express').RouterOptions): {baseUrl: function (path: string): AdvRouter, url: function (path: string): AdvRouter, schema: AdvMethod, endpoints: Array<Object>}}}
  */
 function extendExpress(express, options = {}) {
 	extendApplication(express.application);

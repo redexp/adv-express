@@ -1,6 +1,6 @@
 {
   "name": "adv-express",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "ADV integration with Express",
   "main": "index.js",
   "scripts": {
