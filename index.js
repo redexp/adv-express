@@ -428,6 +428,8 @@ function onResponse(e, ajv, res) {
 }
 
 function validateJsonData(e, ajv, body, statusCode) {
+	body = JSON.parse(JSON.stringify(body));
+
 	for (let response of e.response) {
 		let {code, schema, validate, validateCode} = response;
 
