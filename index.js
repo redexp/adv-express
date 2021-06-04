@@ -139,7 +139,7 @@ function extendRouter(
 		});
 
 		var endpoints = routes.map(function (route) {
-			const {endpoint: e} = route;
+			const e = {...route.endpoint};
 
 			for (const prop in e) {
 				e[prop] = annotations[prop](
@@ -147,6 +147,18 @@ function extendRouter(
 					{defaultMethod}
 				);
 			}
+
+			Object.defineProperty(e, 'route', {
+				enumerable: false,
+				writable: false,
+				value: () => route,
+			});
+
+			Object.defineProperty(e, 'router', {
+				enumerable: false,
+				writable: false,
+				value: () => route.router,
+			});
 
 			return e;
 		});
