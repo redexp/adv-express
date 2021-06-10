@@ -331,4 +331,74 @@ describe('express', function () {
 			})
 		;
 	});
+
+	it('cast response', async function () {
+		const Ajv = require('ajv').default;
+
+		Router = extendExpress(express, {
+			defaultMethod: 'POST',
+			requestAjv: new Ajv(),
+			responseAjv: new Ajv({coerceTypes: true}),
+		}).Router;
+
+		const app = express();
+
+		app.use(express.json());
+
+		class Test {
+			constructor() {
+				this.error = true;
+			}
+
+			toJSON() {
+				return {
+					id: '2',
+				};
+			}
+		}
+
+		app.url('/test')
+		.body(`{test: number}`)
+		.then(({body: {test}}) => test === 1 ? {id: '1'} : new Test())
+		.response(`{id: number}`);
+
+		app.use(function (err, req, res, next) {
+			res.status(err.statusCode || 500);
+
+			try {
+				res.json(err.statusCode && err.body || err);
+			}
+			catch (error) {
+				res.json(error);
+			}
+		});
+
+		Router.endpoints();
+
+		await request(app)
+		.post('/test')
+		.send({test: 1})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(200);
+			expect(res.body).to.eql({id: 1});
+		});
+
+		await request(app)
+		.post('/test')
+		.send({test: '1'})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(500);
+			expect(res.body).to.include({
+				name: "RequestValidationError"
+			});
+		});
+
+		await request(app)
+		.post('/test')
+		.send({test: 2})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(200);
+			expect(res.body).to.eql({id: 2});
+		});
+	});
 });

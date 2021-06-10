@@ -1,6 +1,8 @@
 const annotations = require('api-doc-validator/lib/annotations');
 const {getAstSchema, generateAjvSchema} = require('adv-parser');
 const defaultSchemas = require('adv-parser/schemas');
+const cloneDeepWith = require('lodash.clonedeepwith');
+const clone = require('lodash.clone');
 
 module.exports = extendExpress;
 module.exports.extendApplication = extendApplication;
@@ -17,7 +19,7 @@ module.exports.extendRouter = extendRouter;
 
 /**
  * @param express
- * @param {{schemas?: Object, ajv?: import('ajv'), parseEndpoints?: boolean, defaultMethod?: string, defaultCode?: string|number}} options
+ * @param {{schemas?: Object, ajv?: import('ajv'), requestAjv?: import('ajv'), responseAjv?: import('ajv'), parseEndpoints?: boolean, defaultMethod?: string, defaultCode?: string|number}} options
  * @returns {{Router: function(options?: import('express').RouterOptions): {baseUrl: function (path: string): AdvRouter, url: function (path: string): AdvRouter, schema: AdvMethod, endpoints: Array<Object>}}}
  */
 function extendExpress(express, options = {}) {
@@ -41,6 +43,8 @@ function extendRouter(
 	{
 		schemas = {...defaultSchemas},
 		ajv,
+		requestAjv,
+		responseAjv,
 		parseEndpoints = true,
 		defaultMethod = 'GET',
 		defaultCode = 200,
@@ -49,8 +53,12 @@ function extendRouter(
 	var routes = [];
 	var ready = false;
 
-	if (!ajv) {
-		ajv = getAjv();
+	if (!requestAjv) {
+		requestAjv = ajv || getAjv();
+	}
+
+	if (!responseAjv) {
+		responseAjv = ajv || getAjv();
 	}
 
 	Router.baseUrl = function (baseUrl) {
@@ -62,10 +70,11 @@ function extendRouter(
 
 		this._baseUrl = baseUrl;
 
-		var router = new AdvExpressRouter({
+		const router = new AdvExpressRouter({
 			Router,
 			router: this,
-			ajv,
+			requestAjv,
+			responseAjv,
 			defaultMethod,
 			defaultCode,
 		});
@@ -76,10 +85,11 @@ function extendRouter(
 	};
 
 	Router.url = function url(path) {
-		var router = new AdvExpressRouter({
+		const router = new AdvExpressRouter({
 			Router,
 			router: this,
-			ajv,
+			requestAjv,
+			responseAjv,
 			defaultMethod,
 			defaultCode,
 		});
@@ -90,10 +100,11 @@ function extendRouter(
 	};
 
 	Router.schema = function (code) {
-		var router = new AdvExpressRouter({
+		const router = new AdvExpressRouter({
 			Router,
 			router: this,
-			ajv,
+			requestAjv,
+			responseAjv,
 			defaultMethod,
 			defaultCode,
 		});
@@ -130,15 +141,13 @@ function extendRouter(
 			return value;
 		};
 
-		routes.forEach(function (route) {
-			const {endpoint: e} = route;
-
+		for (let {endpoint: e} of routes) {
 			for (const prop in e) {
 				e[prop] = getAst(e[prop]);
 			}
-		});
+		}
 
-		var endpoints = routes.map(function (route) {
+		const endpoints = routes.map(function (route) {
 			const e = {...route.endpoint};
 
 			for (const prop in e) {
@@ -176,10 +185,11 @@ function extendRouter(
 }
 
 class AdvExpressRouter {
-	constructor({Router, router, ajv, defaultMethod, defaultCode}) {
+	constructor({Router, router, requestAjv, responseAjv, defaultMethod, defaultCode}) {
 		this.Router = Router;
 		this.router = router;
-		this.ajv = ajv;
+		this.requestAjv = requestAjv;
+		this.responseAjv = responseAjv;
 		this.endpoint = {};
 		this.defaultMethod = defaultMethod;
 		this.defaultCode = defaultCode;
@@ -259,13 +269,13 @@ class AdvExpressRouter {
 	}
 
 	validate(req, res) {
-		const {ajv, endpoint: e} = this;
+		const {requestAjv, responseAjv, endpoint: e} = this;
 
 		if (e.params) {
 			let {schema, validate} = e.params;
 
 			if (!validate) {
-				validate = e.params.validate = ajv.compile(schema);
+				validate = e.params.validate = requestAjv.compile(schema);
 			}
 
 			if (!validate(req.params)) {
@@ -277,7 +287,7 @@ class AdvExpressRouter {
 			let {schema, validate} = e.query;
 
 			if (!validate) {
-				validate = e.query.validate = ajv.compile(schema);
+				validate = e.query.validate = requestAjv.compile(schema);
 			}
 
 			if (!validate(req.query)) {
@@ -289,7 +299,7 @@ class AdvExpressRouter {
 			let {schema, validate} = e.body;
 
 			if (!validate) {
-				validate = e.body.validate = ajv.compile(schema);
+				validate = e.body.validate = requestAjv.compile(schema);
 			}
 
 			if (!validate(req.body)) {
@@ -298,7 +308,7 @@ class AdvExpressRouter {
 		}
 
 		if (e.response && e.response.length > 0) {
-			return onResponse(e, ajv, res);
+			return onResponse(e, responseAjv, res);
 		}
 	}
 
@@ -433,15 +443,13 @@ function onResponse(e, ajv, res) {
 
 		if (res.headersSent) return res;
 
-		validateJsonData(e, ajv, data, res.statusCode);
+		data = validateJsonData(data, e, ajv, res.statusCode);
 
 		return res.json(data);
 	};
 }
 
-function validateJsonData(e, ajv, body, statusCode) {
-	body = JSON.parse(JSON.stringify(body));
-
+function validateJsonData(data, e, ajv, statusCode) {
 	for (let response of e.response) {
 		let {code, schema, validate, validateCode} = response;
 
@@ -457,13 +465,17 @@ function validateJsonData(e, ajv, body, statusCode) {
 			validate = response.validate = ajv.compile(schema);
 		}
 
-		if (validate(body)) {
+		data = toJSON(data);
+
+		if (validate(data)) {
 			break;
 		}
 		else {
 			throw new ResponseValidationError(`Invalid response body`, validate.errors);
 		}
 	}
+
+	return data;
 }
 
 function getAjv() {
@@ -473,7 +485,7 @@ function getAjv() {
 		Ajv = Ajv.default;
 	}
 
-	var ajv = new Ajv({coerceTypes: true});
+	const ajv = new Ajv({coerceTypes: true});
 
 	try {
 		var formatsFound = !!require.resolve('ajv-formats');
@@ -485,6 +497,10 @@ function getAjv() {
 	}
 
 	return ajv;
+}
+
+function toJSON(data) {
+	return cloneDeepWith(data, v => clone(v && typeof v.toJSON === 'function' ? v.toJSON() : v));
 }
 
 class ValidationError extends Error {
