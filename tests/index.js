@@ -359,8 +359,17 @@ describe('express', function () {
 
 		app.url('/test')
 		.body(`{test: number}`)
-		.then(({body: {test}}) => test === 1 ? {id: '1'} : new Test())
-		.response(`{id: number}`);
+		.then(({body: {test}}) => (
+			test === 1 ?
+				{id: '1'} :
+			test === 2 ?
+				new Test() :
+			test === 3 ?
+				{date: new Date(2000, 1, 1, 1, 1, 1)}
+				:
+				new Error()
+		))
+		.response(`{id: number} || {date: date-time-tz}`);
 
 		app.use(function (err, req, res, next) {
 			res.status(err.statusCode || 500);
@@ -399,6 +408,14 @@ describe('express', function () {
 		.expect(function (res) {
 			expect(res.statusCode).to.eql(200);
 			expect(res.body).to.eql({id: 2});
+		});
+
+		await request(app)
+		.post('/test')
+		.send({test: 3})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(200);
+			expect(res.body).to.eql({date: '2000-01-31T23:01:01.000Z'});
 		});
 	});
 });

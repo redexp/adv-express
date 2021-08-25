@@ -500,7 +500,14 @@ function getAjv() {
 }
 
 function toJSON(data) {
-	return cloneDeepWith(data, v => clone(v && typeof v.toJSON === 'function' ? v.toJSON() : v));
+	return cloneDeepWith(
+		data,
+		v => {
+			if (v && typeof v.toJSON === 'function') return v.toJSON();
+
+			if (v instanceof Date) return JSON.stringify(v);
+		}
+	);
 }
 
 class ValidationError extends Error {
