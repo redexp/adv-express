@@ -503,9 +503,13 @@ function toJSON(data) {
 	return cloneDeepWith(
 		data,
 		v => {
-			if (v && typeof v.toJSON === 'function') return v.toJSON();
+			if (!v || typeof v !== 'object' || typeof v.toJSON !== 'function') return;
 
-			if (v instanceof Date) return JSON.stringify(v);
+			const json = v.toJSON();
+
+			if (json === v) return;
+
+			return toJSON(json);
 		}
 	);
 }
