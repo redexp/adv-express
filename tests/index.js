@@ -418,4 +418,82 @@ describe('express', function () {
 			expect(res.body).to.eql({date: '2000-01-31T23:01:01.000Z'});
 		});
 	});
+
+	it('file, files', async function () {
+		const app = express();
+		const router = Router();
+
+		app.use(express.json());
+		app.use(router);
+		app.use(function (err, req, res, next) {
+			res.status(err.statusCode || 500);
+
+			try {
+				res.json(err.statusCode && err.body || err);
+			}
+			catch (error) {
+				res.json(error);
+			}
+		});
+
+		router
+		.url('/upload')
+		.callback(function (req, res, next) {
+			req.file = {name: req.body.test};
+			next();
+		})
+		.file(() => ({name: /^\w+\.png$/}))
+		.then((req) => ({file: req.file.name}))
+		.response('{file: string}');
+
+		router
+		.url('/uploads')
+		.callback(function (req, res, next) {
+			req.files = [{name: req.body.test}];
+			next();
+		})
+		.files(() => ([{name: /^\w+\.png$/}]))
+		.then((req) => ({files: req.files[0].name}))
+		.response('{files: string}');
+
+		Router.endpoints(true);
+
+		await request(app)
+		.post('/upload')
+		.send({test: 'test.png'})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(200);
+			expect(res.body).to.eql({file: 'test.png'});
+		});
+
+		await request(app)
+		.post('/upload')
+		.send({test: 1})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(500);
+			expect(res.body).include({
+				name: 'RequestValidationError',
+				property: 'file'
+			});
+		});
+
+		await request(app)
+		.post('/uploads')
+		.send({test: 'test2.png'})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(200);
+			expect(res.body).to.eql({files: 'test2.png'});
+		});
+
+		await request(app)
+		.post('/uploads')
+		.send({test: 1})
+		.expect(function (res) {
+			expect(res.statusCode).to.eql(500);
+			expect(res.body).include({
+				name: 'RequestValidationError',
+				property: 'files'
+			});
+		});
+	});
 });

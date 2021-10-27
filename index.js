@@ -2,7 +2,6 @@ const annotations = require('api-doc-validator/lib/annotations');
 const {getAstSchema, generateAjvSchema} = require('adv-parser');
 const defaultSchemas = require('adv-parser/schemas');
 const cloneDeepWith = require('lodash.clonedeepwith');
-const clone = require('lodash.clone');
 
 module.exports = extendExpress;
 module.exports.extendApplication = extendApplication;
@@ -307,6 +306,30 @@ class AdvExpressRouter {
 			}
 		}
 
+		if (e.file) {
+			let {schema, validate} = e.file;
+
+			if (!validate) {
+				validate = e.file.validate = requestAjv.compile(schema);
+			}
+
+			if (!validate(req.file)) {
+				throw new RequestValidationError(`Invalid request file`, 'file', validate.errors);
+			}
+		}
+
+		if (e.files) {
+			let {schema, validate} = e.files;
+
+			if (!validate) {
+				validate = e.files.validate = requestAjv.compile(schema);
+			}
+
+			if (!validate(req.files)) {
+				throw new RequestValidationError(`Invalid request files`, 'files', validate.errors);
+			}
+		}
+
 		if (e.response && e.response.length > 0) {
 			return onResponse(e, responseAjv, res);
 		}
@@ -359,6 +382,22 @@ class AdvExpressRouter {
 		this.ensureValidate();
 
 		this.endpoint.body = annotations.body.prepare(code);
+
+		return this;
+	}
+
+	file(code) {
+		this.ensureValidate();
+
+		this.endpoint.file = annotations.file.prepare(code);
+
+		return this;
+	}
+
+	files(code) {
+		this.ensureValidate();
+
+		this.endpoint.files = annotations.files.prepare(code);
 
 		return this;
 	}
