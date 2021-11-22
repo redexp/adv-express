@@ -365,7 +365,7 @@ describe('express', function () {
 			test === 2 ?
 				new Test() :
 			test === 3 ?
-				{date: new Date(2000, 1, 1, 1, 1, 1)}
+				{date: new Date('Tue Feb 01 2000 01:01:01 GMT+0200')}
 				:
 				new Error()
 		))
