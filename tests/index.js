@@ -19,7 +19,16 @@ describe('express', function () {
 		app.use(express.json());
 
 		app.baseUrl('/users');
-		app.schema(`User = {id: number, name: string}`);
+		app.schema('User', {
+			type: 'object',
+			additionalProperties: false,
+			required: ['id', 'name'],
+			properties: {
+				id: {type: 'number'},
+				name: {type: 'string'},
+			}
+		});
+
 		app.url('/:id')
 			.params(`User.props('id')`)
 			.then(() => ({name: 'test'}))
@@ -27,8 +36,7 @@ describe('express', function () {
 
 		const list = app.endpoints();
 
-		expect(list).to.be.an('array');
-		expect(list.length).to.eql(3);
+		expect(list).to.be.an('array').and.lengthOf(3);
 
 		await request(app)
 			.post('/users/10')
@@ -42,6 +50,10 @@ describe('express', function () {
 
 	it('router', async function () {
 		const app = express();
+		const Router = extendExpress.extendRouter(express.Router, {
+			parseEndpoints: false,
+			defaultMethod: 'POST',
+		});
 		const router = Router();
 
 		app.use(express.json());
@@ -66,7 +78,16 @@ describe('express', function () {
 				next();
 			})
 			.url('/baseUrl/test')
-			.body(`{test: boolean}`)
+			.body({
+				type: "object",
+				additionalProperties: false,
+				required: ['test'],
+				properties: {
+					test: {
+						type: 'boolean'
+					}
+				}
+			})
 			.then((req) => ({result: req.body.test}))
 			.response(`{result: true}`)
 		;
@@ -140,7 +161,7 @@ describe('express', function () {
 			.call(() => test.post())
 		;
 
-		var endpoints = Router.endpoints(true);
+		const endpoints = Router.endpoints(true);
 
 		expect(endpoints).length(3);
 		expect(endpoints[2]).property('url').to.eql({

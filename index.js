@@ -7,34 +7,25 @@ module.exports = extendExpress;
 module.exports.extendApplication = extendApplication;
 module.exports.extendRouter = extendRouter;
 
-/**
- * @typedef {{props: function (prop: string): AdvModel}} AdvModel
- * @typedef {string|function (name?: AdvModel): (AdvModel|Array<AdvModel>)} AdvSchema
- * @typedef {function (schema: AdvSchema): AdvRouter} AdvMethod
- * @typedef {function(): void|function(err: Error): void} AdvNext
- * @typedef {function(req: Request, res: Response)|function(req: Request, res: Response, next: AdvNext)|function(err: Error, req: Request, res: Response, next: AdvNext)} AdvCallback
- * @typedef {{callback: function (cb: AdvCallback): AdvRouter, then: function (result: any): AdvRouter, catch: function (error: Error): AdvRouter, params: AdvMethod, query: AdvMethod, body: AdvMethod, response: AdvMethod|function(code: string|number, schema: AdvSchema):AdvRouter, call: AdvMethod, schema: AdvMethod}} AdvRouter
- */
-
-/**
- * @param express
- * @param {{schemas?: Object, ajv?: import('ajv'), requestAjv?: import('ajv'), responseAjv?: import('ajv'), parseEndpoints?: boolean, defaultMethod?: string, defaultCode?: string|number}} options
- * @returns {{Router: function(options?: import('express').RouterOptions): {baseUrl: function (path: string): AdvRouter, url: function (path: string): AdvRouter, schema: AdvMethod, endpoints: Array<Object>}}}
- */
 function extendExpress(express, options = {}) {
-	extendApplication(express.application);
-	extendRouter(express.Router, options);
+	const application = extendApplication(express.application);
+	const Router = extendRouter(express.Router, options);
 
-	return express;
+	return {
+		application,
+		Router,
+	};
 }
 
 function extendApplication(app) {
-	['baseUrl', 'url', 'schema', 'endpoints'].forEach(function (method) {
+	for (const method of ['baseUrl', 'url', 'schema', 'endpoints']) {
 		app[method] = function (...args) {
 			this.lazyrouter();
 			return this._router[method](...args);
 		};
-	});
+	}
+
+	return app;
 }
 
 function extendRouter(
@@ -47,9 +38,9 @@ function extendRouter(
 		parseEndpoints = true,
 		defaultMethod = 'GET',
 		defaultCode = 200,
-	}
+	} = {}
 ) {
-	var routes = [];
+	const routes = [];
 	var ready = false;
 
 	if (!requestAjv) {
@@ -98,7 +89,7 @@ function extendRouter(
 		return router.url(path);
 	};
 
-	Router.schema = function (code) {
+	Router.schema = function (...args) {
 		const router = new AdvExpressRouter({
 			Router,
 			router: this,
@@ -110,7 +101,7 @@ function extendRouter(
 
 		routes.push(router);
 
-		return router.schema(code);
+		return router.schema(...args);
 	};
 
 	Router.endpoints = function (force) {
@@ -121,8 +112,9 @@ function extendRouter(
 				return value.map(getAst);
 			}
 
-			if (value.schema) {
+			if (value.schema && typeof value.schema !== 'object') {
 				value.schema = getAstSchema(value.schema, {schemas});
+				value.schema.ast = true;
 			}
 
 			return value;
@@ -133,14 +125,14 @@ function extendRouter(
 				return value.map(generateAjv);
 			}
 
-			if (value.schema) {
+			if (value.schema && value.schema.ast) {
 				value.schema = generateAjvSchema(value.schema, {schemas});
 			}
 
 			return value;
 		};
 
-		for (let {endpoint: e} of routes) {
+		for (const {endpoint: e} of routes) {
 			for (const prop in e) {
 				e[prop] = getAst(e[prop]);
 			}
@@ -231,11 +223,13 @@ class AdvExpressRouter {
 		return this.callback(async (req, res, next) => {
 			try {
 				req._thenResult = await callback(req._thenResult || req);
-				next();
 			}
 			catch (err) {
 				next(err);
+				return;
 			}
+
+			next();
 		});
 	}
 
@@ -245,11 +239,13 @@ class AdvExpressRouter {
 		return this.callback(async (err, req, res, next) => {
 			try {
 				req._thenResult = await callback(err, req, res);
-				next();
 			}
 			catch (err) {
 				next(err);
+				return;
 			}
+
+			next();
 		});
 	}
 
@@ -414,6 +410,10 @@ class AdvExpressRouter {
 			this.endpoint.response = [];
 		}
 
+		if (schema && typeof schema === 'object') {
+			schema = '!!' + JSON.stringify(schema);
+		}
+
 		this.endpoint.response.push(
 			annotations.response.prepare(schema, {
 				defaultCode: code || this.defaultCode
@@ -424,6 +424,10 @@ class AdvExpressRouter {
 	}
 
 	schema(code) {
+		if (arguments.length === 2 && typeof arguments[1] === 'object') {
+			code = `${arguments[0]} = !!${JSON.stringify(arguments[1])}`;
+		}
+
 		this.endpoint.schema = this.endpoint.schema || [];
 		this.endpoint.schema.push(
 			annotations.schema.prepare(code)
