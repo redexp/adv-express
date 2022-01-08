@@ -74,7 +74,7 @@ declare class AdvExpressRouter {
 	response(schema: Schema): this;
 }
 
-export type Schema = Code | JsonSchema;
+export type Schema = Code | JsonSchema | {toJSON(): Schema, [prop: string]: any};
 export type JsonSchema = {type: JSONType | JSONType[], [prop: string]: any};
 export type CallbackHandler = ((req: Request, res: Response, next: NextFunction) => void) | ((err: Error, req: Request, res: Response, next: NextFunction) => void);
 export type RouterThenHandler = (data: Request | any) => any;

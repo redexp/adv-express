@@ -342,18 +342,24 @@ class AdvExpressRouter {
 		this.callback(this.validateHandler);
 	}
 
-	namespace(code) {
-		this.endpoint.namespace = code;
+	namespace(name) {
+		this.endpoint.namespace = name;
 
 		return this;
 	}
 
-	ns(code) {
-		return this.namespace(code);
+	ns(name) {
+		return this.namespace(name);
 	}
 
-	description(code) {
-		this.endpoint.description = code;
+	description(text) {
+		this.endpoint.description = text;
+
+		return this;
+	}
+
+	call(code) {
+		this.endpoint.call = prepare('call', code);
 
 		return this;
 	}
@@ -361,7 +367,7 @@ class AdvExpressRouter {
 	params(code) {
 		this.ensureValidate();
 
-		this.endpoint.params = annotations.params.prepare(code);
+		this.endpoint.params = prepare('params', code);
 
 		return this;
 	}
@@ -369,7 +375,7 @@ class AdvExpressRouter {
 	query(code) {
 		this.ensureValidate();
 
-		this.endpoint.query = annotations.query.prepare(code);
+		this.endpoint.query = prepare('query', code);
 
 		return this;
 	}
@@ -377,7 +383,7 @@ class AdvExpressRouter {
 	body(code) {
 		this.ensureValidate();
 
-		this.endpoint.body = annotations.body.prepare(code);
+		this.endpoint.body = prepare('body', code);
 
 		return this;
 	}
@@ -385,7 +391,7 @@ class AdvExpressRouter {
 	file(code) {
 		this.ensureValidate();
 
-		this.endpoint.file = annotations.file.prepare(code);
+		this.endpoint.file = prepare('file', code);
 
 		return this;
 	}
@@ -393,7 +399,7 @@ class AdvExpressRouter {
 	files(code) {
 		this.ensureValidate();
 
-		this.endpoint.files = annotations.files.prepare(code);
+		this.endpoint.files = prepare('files', code);
 
 		return this;
 	}
@@ -432,12 +438,6 @@ class AdvExpressRouter {
 		this.endpoint.schema.push(
 			annotations.schema.prepare(code)
 		);
-
-		return this;
-	}
-
-	call(code) {
-		this.endpoint.call = code;
 
 		return this;
 	}
@@ -555,6 +555,16 @@ function toJSON(data) {
 			return toJSON(json);
 		}
 	);
+}
+
+function prepare(type, code) {
+	if (code && code.toJSON) {
+		code = code.toJSON();
+	}
+
+	const {prepare} = annotations[type];
+
+	return prepare ? prepare(code) : code;
 }
 
 class ValidationError extends Error {

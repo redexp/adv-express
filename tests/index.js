@@ -97,7 +97,7 @@ describe('express', function () {
 		router
 			.url(`/:id`)
 			.params(`Test.props('id')`)
-			.query(`{search: string}`)
+			.query({toJSON: () => `{search: string}`, test: 1})
 			.body(`Test.omit('id')`)
 			.callback(function (req, res, next) {
 				req.test = 1;
