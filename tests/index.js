@@ -2,15 +2,22 @@ const {expect} = require('chai');
 const express = require('express');
 const request = require('supertest');
 const extendExpress = require('../index');
+const {raw} = require("express");
+const {extendRouter} = extendExpress;
+
+const createRouter = function (options = {}) {
+	return extendRouter(express.Router, {
+		defaultMethod: 'POST',
+		...options,
+	});
+};
 
 describe('express', function () {
-	let Router;
-
 	beforeEach(function () {
-		Router = extendExpress(express, {
+		extendExpress(express, {
 			parseEndpoints: false,
 			defaultMethod: 'POST',
-		}).Router;
+		});
 	});
 
 	it('app', async function () {
@@ -50,9 +57,8 @@ describe('express', function () {
 
 	it('router', async function () {
 		const app = express();
-		const Router = extendExpress.extendRouter(express.Router, {
+		const Router = createRouter({
 			parseEndpoints: false,
-			defaultMethod: 'POST',
 		});
 		const router = Router();
 
@@ -356,11 +362,10 @@ describe('express', function () {
 	it('cast response', async function () {
 		const Ajv = require('ajv').default;
 
-		Router = extendExpress(express, {
-			defaultMethod: 'POST',
+		const Router = createRouter({
 			requestAjv: new Ajv(),
 			responseAjv: new Ajv({coerceTypes: true}),
-		}).Router;
+		});
 
 		const app = express();
 
@@ -442,6 +447,7 @@ describe('express', function () {
 
 	it('file, files', async function () {
 		const app = express();
+		const Router = createRouter();
 		const router = Router();
 
 		app.use(express.json());
@@ -515,6 +521,56 @@ describe('express', function () {
 				name: 'RequestValidationError',
 				property: 'files'
 			});
+		});
+	});
+
+	it('params', async function () {
+		const app = express();
+		const Router = createRouter();
+		const router = Router({mergeParams: true});
+
+		router
+		.url('/test/:name/:id(\\d+)?')
+		.params(`{name: string, [id]: id}`)
+		.then(function (req) {
+			const {params} = req;
+
+			expect(params).to.have.property('name');
+
+			if (params.name === 'one') {
+				expect(params)
+				.to.have.property('id', 1)
+				.and
+				.to.be.a('number');
+			}
+
+			return {result: params.name + '-' + params.id};
+		});
+
+		app.use(express.json());
+		app.use(router);
+
+		app.use(function (err, req, res, next) {
+			res.status(err.statusCode || 500);
+
+			try {
+				res.json(err.statusCode && err.body || err);
+			}
+			catch (error) {
+				res.json(error);
+			}
+		});
+
+		await request(app)
+		.post('/test/one/1')
+		.expect(function (res) {
+			expect(res.body).to.eql({result: 'one-1'});
+		});
+
+		await request(app)
+		.post('/test/two')
+		.expect(function (res) {
+			expect(res.body).to.eql({result: 'two-undefined'});
 		});
 	});
 });

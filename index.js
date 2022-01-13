@@ -273,8 +273,14 @@ class AdvExpressRouter {
 				validate = e.params.validate = requestAjv.compile(schema);
 			}
 
-			if (!validate(req.params)) {
+			const params = stripUndefined(req.params);
+
+			if (!validate(params)) {
 				throw new RequestValidationError(`Invalid URL params`, 'params', validate.errors);
+			}
+
+			for (const prop in params) {
+				req.params[prop] = params[prop];
 			}
 		}
 
@@ -567,6 +573,20 @@ function prepare(type, code) {
 	return prepare ? prepare(code) : code;
 }
 
+function stripUndefined(source) {
+	const target = {};
+
+	for (const name in source) {
+		const value = source[name];
+
+		if (typeof value === 'undefined') continue;
+
+		target[name] = value;
+	}
+
+	return target;
+}
+
 class ValidationError extends Error {
 	constructor(message, errors) {
 		super(message);
@@ -593,6 +613,7 @@ class ResponseValidationError extends ValidationError {
 	}
 }
 
+module.exports.Router = AdvExpressRouter;
 module.exports.ValidationError = ValidationError;
 module.exports.RequestValidationError = RequestValidationError;
 module.exports.ResponseValidationError = ResponseValidationError;

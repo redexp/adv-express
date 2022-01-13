@@ -1,7 +1,7 @@
-import {Application, Router, RouterOptions, Request, Response, NextFunction} from 'express';
+import {Application, Router as ExpressRouter, RouterOptions, Request, Response, NextFunction} from 'express';
 import Express = require('express');
 import {Code, Schemas} from 'adv-parser';
-import Ajv, {JSONType} from 'ajv';
+import Ajv, {JSONType, ErrorObject} from 'ajv';
 
 declare function extendExpress(express: typeof Express, options?: Options): ExtendedExpress;
 
@@ -11,7 +11,7 @@ export default extendExpress;
 
 export declare function extendApplication(application: Application): ExtendedApplication;
 
-export declare function extendRouter(router: typeof Router, options?: ExtendRouterOptions): ExtendedRouter;
+export declare function extendRouter(router: typeof ExpressRouter, options?: ExtendRouterOptions): ExtendedRouter;
 
 export interface ExtendRouterOptions {
 	schemas?: Schemas,
@@ -35,7 +35,7 @@ interface ExtendedApplication extends Application {
 	endpoints(force?: boolean): Endpoint[];
 }
 
-interface ExtendedRouter extends Router {
+interface ExtendedRouter extends ExpressRouter {
 	(options?: RouterOptions): ExtendedRouter;
 
 	baseUrl(url: string): AdvExpressRouter;
@@ -47,7 +47,7 @@ interface ExtendedRouter extends Router {
 declare class AdvExpressRouter {
 	constructor(options: {
 		Router: ExtendedRouter,
-		router: typeof Router,
+		router: typeof ExpressRouter,
 		requestAjv: typeof Ajv,
 		responseAjv: typeof Ajv,
 		defaultMethod: string,
@@ -74,6 +74,8 @@ declare class AdvExpressRouter {
 	response(schema: Schema): this;
 }
 
+export const Router: typeof AdvExpressRouter;
+
 export type Schema = Code | JsonSchema | {toJSON(): Schema, [prop: string]: any};
 export type JsonSchema = {type: JSONType | JSONType[], [prop: string]: any};
 export type CallbackHandler = ((req: Request, res: Response, next: NextFunction) => void) | ((err: Error, req: Request, res: Response, next: NextFunction) => void);
@@ -87,4 +89,22 @@ interface Endpoint {
 		path: string,
 	},
 	[prop: string]: any,
+}
+
+export declare class ValidationError extends Error {
+	name: string;
+	errors: ErrorObject[];
+
+	constructor(message: string, errors: ErrorObject[]);
+}
+
+export declare class RequestValidationError extends ValidationError {
+	name: "RequestValidationError";
+	property: string;
+
+	constructor(message: string, property: string, errors: ErrorObject[]);
+}
+
+export declare class ResponseValidationError extends ValidationError {
+	name: "RequestValidationError";
 }
